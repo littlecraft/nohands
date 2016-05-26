@@ -36,6 +36,18 @@
 
 namespace libhfp {
 
+class Config
+{
+public:
+  static Config& Get() { return sConfig; }
+  const char* hci_address;
+private:
+  Config() : hci_address(NULL)
+  {}
+
+  static Config sConfig;
+};
+
 /**
  * @defgroup hfp Bluetooth Hands-Free Profile Implementation
  *

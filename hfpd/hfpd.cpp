@@ -44,38 +44,39 @@ using namespace libhfp;
 static void
 usage(const char *argv0)
 {
-	const char *bn;
+  const char *bn;
 
-	bn = strrchr(argv0, '/');
-	if (!bn)
-		bn = argv0;
-	else
-		bn++;
+  bn = strrchr(argv0, '/');
+  if (!bn)
+    bn = argv0;
+  else
+    bn++;
 
-	fprintf(stdout,
+  fprintf(stdout,
 "Usage: %s [-c <file>] [-y] [-f] [-E] [-S] [-d <level>] [-v <level>]\n"
 "Available Options:\n"
-"-c <file>	Specify local read/write settings file\n"
-"-y		Attach to D-Bus system bus (default session bus)\n"
-"-f		Run in foreground, do not daemonize\n"
-"-E		Log to stderr\n"
-"-S		Log to syslog\n"
-"-d <level>	Log level:\n"
-"		0: No log messages\n"
-"		1: Severe errors only\n"
-"		2: Warnings, severe errors\n"
+"-c <file>  Specify local read/write settings file\n"
+"-y   Attach to D-Bus system bus (default session bus)\n"
+"-f   Run in foreground, do not daemonize\n"
+"-E   Log to stderr\n"
+"-i <device mac> Bind to a specific device\n"
+"-S   Log to syslog\n"
+"-d <level> Log level:\n"
+"   0: No log messages\n"
+"   1: Severe errors only\n"
+"   2: Warnings, severe errors\n"
 #if !defined(NDEBUG)
-"		3: Information, warnings, errors\n"
-"		4: Detailed debug messages (DEFAULT)\n"
+"   3: Information, warnings, errors\n"
+"   4: Detailed debug messages (DEFAULT)\n"
 #else
-"		3: Information, warnings, errors (DEFAULT)\n"
-"		4: Detailed debug messages (DISABLED BY BUILD)\n"
+"   3: Information, warnings, errors (DEFAULT)\n"
+"   4: Detailed debug messages (DISABLED BY BUILD)\n"
 #endif
-"-v <level>	Elevate the priority of all syslog messages to <level>,\n"
-"		to support debugging without reconfiguring syslogd.\n"
-"		This value defaults to the specified log level\n"
-		"\n",
-		bn);
+"-v <level> Elevate the priority of all syslog messages to <level>,\n"
+"   to support debugging without reconfiguring syslogd.\n"
+"   This value defaults to the specified log level\n"
+    "\n",
+    bn);
 }
 
 typedef DispatchInterface::logtype_t loglev_t;
@@ -83,111 +84,120 @@ typedef DispatchInterface::logtype_t loglev_t;
 int
 main(int argc, char **argv)
 {
-	loglev_t loglevel, elevlevel = DispatchInterface::EVLOG_WARNING;
-	const char *cfgfile = 0;
-	bool elev_set = false;
-	bool do_dbus_system = false;
-	bool do_foreground = false;
-	bool do_syslog = false;
-	bool do_stderr = false;
-	int c;
+  loglev_t loglevel, elevlevel = DispatchInterface::EVLOG_WARNING;
+  const char* device_address = NULL;
+  const char *cfgfile = 0;
+  bool elev_set = false;
+  bool do_dbus_system = false;
+  bool do_foreground = false;
+  bool do_syslog = false;
+  bool do_stderr = false;
+  int c;
+
 
 #if !defined(NDEBUG)
-	loglevel = DispatchInterface::EVLOG_DEBUG;
+  loglevel = DispatchInterface::EVLOG_DEBUG;
 #else
-	loglevel = DispatchInterface::EVLOG_INFO;
+  loglevel = DispatchInterface::EVLOG_INFO;
 #endif
 #if defined(USE_VERBOSE_DEBUG)
-	elev_set = true;
+  elev_set = true;
 #endif
 
-	opterr = 0;
-	while ((c = getopt(argc, argv, "hH?c:yfESd:v:")) != -1) {
-		switch (c) {
-		case 'h':
-		case 'H':
-		case '?':
-			usage(argv[0]);
-			return 0;
+  opterr = 0;
+  while ((c = getopt(argc, argv, "hH?i:c:yfESd:v:")) != -1) {
+    switch (c) {
+    case 'h':
+    case 'H':
+    case '?':
+      usage(argv[0]);
+      return 0;
 
-		case 'c':
-			cfgfile = optarg;
-			break;
-		case 'y':
-			do_dbus_system = true;
-			break;
-		case 'f':
-			do_foreground = 1;
-			break;
-		case 'E':
-			do_stderr = true;
-			break;
-		case 'S':
-			do_syslog = true;
-			break;
-		case 'd':
-			loglevel = (loglev_t) strtol(optarg, NULL, 0);
-		case 'v':
-			elevlevel = (loglev_t) strtol(optarg, NULL, 0);
-			elev_set = true;
-			break;
-		}
-	}
+    case 'c':
+      cfgfile = optarg;
+      break;
+    case 'y':
+      do_dbus_system = true;
+      break;
+    case 'f':
+      do_foreground = 1;
+      break;
+    case 'E':
+      do_stderr = true;
+      break;
+    case 'S':
+      do_syslog = true;
+      break;
+    case 'd':
+      loglevel = (loglev_t) strtol(optarg, NULL, 0);
+    case 'v':
+      elevlevel = (loglev_t) strtol(optarg, NULL, 0);
+      elev_set = true;
+      break;
+    case 'i':
+      device_address = optarg;
+      break;
+    }
+  }
 
-	if (!elev_set)
-		elevlevel = loglevel;
+  if (!elev_set)
+    elevlevel = loglevel;
 
-	if (!do_stderr && !do_syslog) {
-		if (do_foreground)
-			do_stderr = true;
-		else
-			do_syslog = true;
-	}
+  if (!do_stderr && !do_syslog) {
+    if (do_foreground)
+      do_stderr = true;
+    else
+      do_syslog = true;
+  }
 
-	SyslogDispatcher disp;
+  if (device_address) {
+    Config::Get().hci_address = device_address;
+  }
 
-	/* Until we daemonize, we always use stderr for logging */
-	disp.SetSyslog(do_syslog, elevlevel);
-	disp.SetStderr(true);
-	disp.SetLevel(loglevel);
+  SyslogDispatcher disp;
 
-	DbusSession dbus(&disp);
-	HandsFree hf(&disp, &dbus);
+  /* Until we daemonize, we always use stderr for logging */
+  disp.SetSyslog(do_syslog, elevlevel);
+  disp.SetStderr(true);
+  disp.SetLevel(loglevel);
 
-	/* DBUS_BUS_STARTER seems to default to the session bus */
-	if (!dbus.Connect(do_dbus_system
-			  ? DBUS_BUS_SYSTEM : DBUS_BUS_STARTER)) {
-		fprintf(stderr,
-			"Could not connect to D-Bus.  "
-			"Is dbus-daemon running?\n"
-			"hfpd aborting\n");
-		return 1;
-	}
+  DbusSession dbus(&disp);
+  HandsFree hf(&disp, &dbus);
 
-	if (!hf.Init(cfgfile)) {
-		fprintf(stderr,
-			"Could not initialize hands-free subsystem\n"
-			"hfpd aborting\n");
-		return 1;
-	}
+  /* DBUS_BUS_STARTER seems to default to the session bus */
+  if (!dbus.Connect(do_dbus_system
+        ? DBUS_BUS_SYSTEM : DBUS_BUS_STARTER)) {
+    fprintf(stderr,
+      "Could not connect to D-Bus.  "
+      "Is dbus-daemon running?\n"
+      "hfpd aborting\n");
+    return 1;
+  }
 
-	if (!dbus.AddUniqueName(HFPD_SERVICE_NAME)) {
-		fprintf(stderr,
-			"Could not acquire D-Bus unique name.  "
-			"Is another hfpd running?\n"
-			"hfpd aborting\n");
-		return 1;
-	}
+  if (!hf.Init(cfgfile)) {
+    fprintf(stderr,
+      "Could not initialize hands-free subsystem\n"
+      "hfpd aborting\n");
+    return 1;
+  }
 
-	/* Send log messages to D-Bus */
-	disp.cb_LogExt.Register(&hf, &HandsFree::LogMessage);
+  if (!dbus.AddUniqueName(HFPD_SERVICE_NAME)) {
+    fprintf(stderr,
+      "Could not acquire D-Bus unique name.  "
+      "Is another hfpd running?\n"
+      "hfpd aborting\n");
+    return 1;
+  }
 
-	if (!do_foreground && !Daemonize())
-		return 1;
+  /* Send log messages to D-Bus */
+  disp.cb_LogExt.Register(&hf, &HandsFree::LogMessage);
 
-	/* Maybe turn off stderr logging */
-	disp.SetStderr(do_stderr);
+  if (!do_foreground && !Daemonize())
+    return 1;
 
-	disp.Run();
-	return 0;
+  /* Maybe turn off stderr logging */
+  disp.SetStderr(do_stderr);
+
+  disp.Run();
+  return 0;
 }

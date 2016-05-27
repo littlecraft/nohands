@@ -1,4 +1,12 @@
 These files are required in order to get hfpd to run without X, on Raspbian.
 
-dbus:       Allow root to own the correct dbus domain on the system bus
-bluetoothd: Start bluetoothd in compatibility mode to enable sdp browse local
+/etc/dbus-1
+Allow root to own the correct dbus domain on the system bus.
+
+/usr/lib/systemd/system/bluetooth.service
+Start bluetoothd in compatibility mode to enable sdp browse local.
+
+dbus-headless.sh
+By 'sourcing' this prior to running hfpd, hfpd will attempt to
+publish services on the system bus (rather than a session bus,
+which generally requires X).
